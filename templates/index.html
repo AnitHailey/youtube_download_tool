@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube 视频下载器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 标题部分 -->
+        <div class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">YouTube 视频下载器</h1>
+            <p class="text-gray-600">输入 YouTube 视频链接，轻松下载高质量视频</p>
+        </div>
+
+        <!-- 下载表单 -->
+        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
+            <form id="downloadForm" class="space-y-4">
+                <div>
+                    <input type="url" id="videoUrl" name="url" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                           placeholder="请输入 YouTube 视频链接">
+                </div>
+                <button type="submit"
+                        class="w-full bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition duration-300">
+                    开始下载
+                </button>
+            </form>
+        </div>
+
+        <!-- 下载状态列表 -->
+        <div id="status-list" class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">当前下载任务</h2>
+            <!-- 下载状态将在这里动态添加 -->
+        </div>
+            
+        <!-- 下载进度 -->
+        <div id="downloadProgress" class="hidden max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">下载进度</h3>
+            <div class="space-y-4">
+                <div class="progress-container">
+                    <div class="progress-bar"></div>
+                </div>
+                <div class="progress-info grid grid-cols-3 gap-4 text-sm text-gray-600">
+                    <div>
+                        <span class="font-medium">进度:</span>
+                        <span id="progressText">0%</span>
+                    </div>
+                    <div>
+                        <span class="font-medium">速度:</span>
+                        <span id="speedText">0 KB/s</span>
+                    </div>
+                    <div>
+                        <span class="font-medium">剩余时间:</span>
+                        <span id="etaText">计算中...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 已下载视频列表 -->
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">已下载的视频</h2>
+            <div class="space-y-4">
+                {% if videos %}
+                    {% for video in videos %}
+                    <div class="bg-white rounded-lg shadow-md p-6">
+                        <div class="flex flex-col md:flex-row gap-4">
+                            <div class="md:w-1/3">
+                                <video class="video-preview" controls>
+                                    <source src="{{ video.path }}" type="video/mp4">
+                                    您的浏览器不支持 HTML5 视频播放
+                                </video>
+                            </div>
+                            <div class="md:w-2/3">
+                                <h3 class="text-xl font-semibold text-gray-800">{{ video.info.title }}</h3>
+                                <div class="mt-2 space-y-2 text-sm text-gray-600">
+                                    <p><span class="font-medium">作者:</span> {{ video.info.author }}</p>
+                                    <p><span class="font-medium">时长:</span> {{ video.info.duration }}</p>
+                                    <p><span class="font-medium">文件大小:</span> {{ video.info.filesize }}</p>
+                                    <p><span class="font-medium">存储路径:</span> {{ video.path }}</p>
+                                </div>
+                                <p class="mt-3 text-sm text-gray-700">{{ video.info.description[:200] }}...</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="bg-white rounded-lg shadow-md p-6 text-center">
+                        <p class="text-gray-600">还没有下载任何视频</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const showError = (message) => {
+            alert('错误: ' + message);
+            console.error('错误:', message);
+        };
+
+        const showSuccess = (message) => {
+            console.log('成功:', message);
+        };
+
+        const updateProgress = (progressBar, progressText, speedText, etaText, progress, speed, eta) => {
+            if (progressBar) progressBar.style.width = `${progress}%`;
+            if (progressText) progressText.textContent = `${progress}%`;
+            if (speedText) speedText.textContent = typeof speed === 'number' 
+                ? `${(speed / 1024 / 1024).toFixed(2)} MB/s`
+                : speed;
+            if (etaText) etaText.textContent = typeof eta === 'number'
+                ? `${Math.floor(eta / 60)}分${eta % 60}秒`
+                : eta;
+        };
+
+        async function checkStatus(videoId) {
+            try {
+                console.log('检查状态:', videoId);
+                const response = await fetch(`/status/${videoId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log('状态数据:', data);
+                
+                // 获取状态显示元素
+                const statusElement = document.getElementById(`status-${videoId}`);
+                const progressElement = document.getElementById(`progress-${videoId}`);
+                const progressBar = document.querySelector('.progress-bar');
+                const progressText = document.getElementById('progressText');
+                const speedText = document.getElementById('speedText');
+                const etaText = document.getElementById('etaText');
+                const progressDiv = document.getElementById('downloadProgress');
+                
+                // 处理不同的状态
+                switch (data.status) {
+                    case 'downloading':
+                        if (statusElement) statusElement.textContent = `下载中... ${data.progress}%`;
+                        if (progressElement) {
+                            progressElement.value = data.progress;
+                            progressElement.style.display = 'block';
+                        }
+                        if (progressDiv) progressDiv.classList.remove('hidden');
+                        updateProgress(
+                            progressBar,
+                            progressText,
+                            speedText,
+                            etaText,
+                            data.progress,
+                            data.speed,
+                            data.eta
+                        );
+                        setTimeout(() => checkStatus(videoId), 1000);
+                        break;
+                        
+                    case 'processing':
+                        if (statusElement) statusElement.textContent = '处理中...';
+                        if (progressElement) {
+                            progressElement.value = 100;
+                            progressElement.style.display = 'block';
+                        }
+                        if (progressDiv) progressDiv.classList.remove('hidden');
+                        updateProgress(progressBar, progressText, speedText, etaText, 100, '处理中', '请稍候');
+                        setTimeout(() => checkStatus(videoId), 1000);
+                        break;
+                        
+                    case 'completed':
+                        if (statusElement) statusElement.textContent = '下载完成';
+                        if (progressElement) {
+                            progressElement.value = 100;
+                            progressElement.style.display = 'block';
+                        }
+                        if (progressDiv) progressDiv.classList.remove('hidden');
+                        updateProgress(progressBar, progressText, speedText, etaText, 100, '完成', '已完成');
+                        showSuccess('下载完成！');
+                        
+                        // 添加下载链接
+                        if (data.path && statusElement) {
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = data.path;
+                            downloadLink.textContent = '点击下载';
+                            downloadLink.className = 'download-link';
+                            statusElement.appendChild(document.createElement('br'));
+                            statusElement.appendChild(downloadLink);
+                        }
+                        
+                        // 延迟刷新页面
+                        setTimeout(() => window.location.reload(), 1000);
+                        break;
+                        
+                    case 'error':
+                        const errorMessage = data.error || '未知错误';
+                        if (statusElement) statusElement.textContent = `错误: ${errorMessage}`;
+                        if (progressElement) progressElement.style.display = 'none';
+                        if (progressDiv) progressDiv.classList.add('hidden');
+                        showError(errorMessage);
+                        break;
+                        
+                    default:
+                        if (statusElement) statusElement.textContent = `状态: ${data.status}`;
+                        if (progressElement) progressElement.style.display = 'none';
+                        if (progressDiv) progressDiv.classList.remove('hidden');
+                        updateProgress(progressBar, progressText, speedText, etaText, 100, data.status, '处理中');
+                        setTimeout(() => checkStatus(videoId), 1000);
+                }
+            } catch (error) {
+                console.error('Status check failed:', error);
+                const statusElement = document.getElementById(`status-${videoId}`);
+                if (statusElement) {
+                    statusElement.textContent = `状态检查失败: ${error.message}`;
+                }
+                showError(error.message);
+            }
+        }
+
+        document.getElementById('downloadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const url = form.querySelector('#videoUrl').value.trim();
+            const progressDiv = document.getElementById('downloadProgress');
+            const submitButton = form.querySelector('button[type="submit"]');
+            
+            // 验证 URL
+            if (!url) {
+                showError('请输入视频链接');
+                return;
+            }
+            
+            if (!url.match(/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+$/)) {
+                showError('请输入有效的 YouTube 视频链接');
+                return;
+            }
+            
+            // 禁用提交按钮
+            submitButton.disabled = true;
+            submitButton.classList.add('button-disabled');
+            
+            try {
+                // 开始下载
+                showSuccess('正在发送请求...');
+                console.log('发送请求到:', '/download');
+                console.log('视频链接:', url);
+                
+                const formData = new FormData();
+                formData.append('url', url);
+                
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: '未知错误' }));
+                    throw new Error(errorData.error || `服务器错误 (${response.status})`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.video_id) {
+                    throw new Error('服务器响应缺少视频ID');
+                }
+                
+                showSuccess('开始下载，视频ID: ' + data.video_id);
+                
+                // 创建新的状态显示元素
+                const statusContainer = document.createElement('div');
+                statusContainer.className = 'bg-white rounded-lg shadow-sm p-4 mb-4';
+                statusContainer.innerHTML = `
+                    <div class="space-y-2">
+                        <div id="status-${data.video_id}" class="text-gray-700">等待开始下载...</div>
+                        <div class="progress-container">
+                            <div id="progress-${data.video_id}" class="progress-bar"></div>
+                        </div>
+                    </div>
+                `;
+                
+                const statusList = document.getElementById('status-list');
+                if (statusList) {
+                    statusList.appendChild(statusContainer);
+                }
+                
+                // 开始检查状态
+                await checkStatus(data.video_id);
+                
+            } catch (error) {
+                showError(error.message);
+                if (progressDiv) progressDiv.classList.add('hidden');
+            } finally {
+                // 重新启用提交按钮
+                submitButton.disabled = false;
+                submitButton.classList.remove('button-disabled');
+                // 清空输入框
+                form.querySelector('#videoUrl').value = '';
+            }
+        });
+    </script>
+</body>
+</html> 

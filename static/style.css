@@ -1,0 +1,95 @@
+/* 基础样式 */
+body {
+    background-color: #f3f4f6;
+    min-height: 100vh;
+}
+
+/* 进度条样式 */
+.progress-container {
+    background-color: #e5e7eb;
+    border-radius: 9999px;
+    height: 1rem;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background-color: #3b82f6;
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 300ms ease-in-out;
+}
+
+/* 下载状态样式 */
+.status-container {
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.status {
+    color: #374151;
+    margin-bottom: 0.5rem;
+}
+
+/* 视频预览样式 */
+.video-preview {
+    width: 100%;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+/* 下载链接样式 */
+.download-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: #3b82f6;
+    color: white;
+    border-radius: 0.375rem;
+    text-decoration: none;
+    transition: background-color 300ms;
+}
+
+.download-link:hover {
+    background-color: #2563eb;
+}
+
+/* 禁用状态样式 */
+.button-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 进度信息样式 */
+.progress-info {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: #4b5563;
+}
+
+.progress-info > div {
+    display: flex;
+    flex-direction: column;
+}
+
+.progress-info .font-medium {
+    color: #374151;
+    margin-bottom: 0.25rem;
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+    .progress-info {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    
+    .video-preview {
+        max-height: 200px;
+        object-fit: cover;
+    }
+} 
